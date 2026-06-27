@@ -1,0 +1,16 @@
+[
+  {
+    "label": "acct1",
+    "email": "you@gmail.com",
+    "secure_1psid": "g.a000_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "secure_1psidts": "sidts-xxxxxxxxxxxxxxxxxxxxxxxx",
+    "proxy": null
+  },
+  {
+    "label": "acct2",
+    "email": "other@gmail.com",
+    "secure_1psid": "g.a000_yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "secure_1psidts": "sidts-yyyyyyyyyyyyyyyyyyyyyyyy",
+    "proxy": null
+  }
+]
