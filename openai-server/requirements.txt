@@ -1,0 +1,3 @@
+gemini_webapi
+fastapi
+uvicorn[standard]

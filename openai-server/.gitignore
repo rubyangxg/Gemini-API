@@ -1,0 +1,7 @@
+# 机密：绝不提交
+.env
+accounts.json
+generated/
+__pycache__/
+*.pyc
+.venv/

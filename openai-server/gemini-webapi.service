@@ -1,0 +1,17 @@
+# systemd --user 单元示例
+# 安装：cp 到 ~/.config/systemd/user/ 后
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now gemini-webapi.service
+#   loginctl enable-linger $USER   # 开机自启（需要时）
+[Unit]
+Description=Gemini WebAPI OpenAI-compatible server
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/apps/gemini-webapi-server
+ExecStart=%h/apps/gemini-webapi-server/.venv/bin/python server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

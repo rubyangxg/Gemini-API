@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemini 多账号控制台</title>
+<style>
+  :root{
+    --bg:#0f1424; --panel:#171d33; --panel2:#1f2742; --line:#2a3357;
+    --text:#e7ecff; --muted:#9aa6cf; --accent:#6c8cff; --accent2:#9b6cff;
+    --ok:#3ddc97; --bad:#ff6b6b; --user:#243156;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;}
+  header{display:flex;align-items:center;gap:14px;padding:14px 22px;
+    background:linear-gradient(90deg,#1a2138 0,#171d33 100%);border-bottom:1px solid var(--line);}
+  header h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.5px;}
+  header .sub{color:var(--muted);font-size:12px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:18px;}
+  .tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .tab{padding:9px 18px;border-radius:999px;background:var(--panel);border:1px solid var(--line);
+    color:var(--muted);cursor:pointer;font-weight:700;font-size:14px;}
+  .tab.on{background:var(--accent);color:#0b1020;border-color:var(--accent);}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  label.fld{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;}
+  select,input,textarea,button{font-family:inherit;font-size:14px;}
+  select,input{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:10px;padding:8px 10px;}
+  textarea{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:12px;padding:12px;resize:vertical;min-height:60px;}
+  button.go{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;
+    border:none;border-radius:12px;padding:11px 22px;font-weight:800;cursor:pointer;}
+  button.go:disabled{opacity:.5;cursor:not-allowed;}
+  button.ghost{background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+    border-radius:10px;padding:8px 14px;cursor:pointer;}
+  #accts{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:999px;padding:5px 12px;font-size:13px;}
+  .dot{width:9px;height:9px;border-radius:50%;}
+  .dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+  .dot.bad{background:var(--bad);}
+  #chat{display:flex;flex-direction:column;gap:12px;margin-bottom:14px;}
+  .msg{max-width:86%;padding:11px 14px;border-radius:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+  .msg.user{align-self:flex-end;background:var(--user);}
+  .msg.ai{align-self:flex-start;background:var(--panel2);border:1px solid var(--line);}
+  .msg .meta{font-size:11px;color:var(--muted);margin-bottom:5px;}
+  .msg img{max-width:100%;border-radius:10px;margin-top:8px;}
+  .msg pre{background:#0c1020;padding:10px;border-radius:10px;overflow:auto;border:1px solid var(--line);}
+  .msg code{background:#0c1020;padding:1px 5px;border-radius:5px;}
+  .hint{color:var(--muted);font-size:12px;}
+  #imgOut img{max-width:100%;border-radius:12px;margin-top:12px;border:1px solid var(--line);}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--muted);
+    border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  /* 科普动画预览 */
+  #lessonFrame{width:100%;height:760px;border:1px solid var(--line);border-radius:12px;background:#000;margin-top:12px;}
+  /* 登录浮层 */
+  #login{position:fixed;inset:0;background:rgba(8,11,22,.92);display:none;
+    align-items:center;justify-content:center;z-index:100;}
+  #login .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px;width:340px;text-align:center;}
+  #login h2{margin:0 0 6px;font-size:18px;}
+  #login input{width:100%;margin:14px 0;text-align:center;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🤖 Gemini 多账号控制台</h1>
+  <span class="sub">网页 cookie · OpenAI 兼容 · 轮询 + 自动容错</span>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>账号池 <span id="readyCnt" class="hint"></span></strong>
+      <div class="row">
+        <button class="ghost" onclick="logout()">登出</button>
+        <button class="ghost" onclick="loadHealth()">刷新</button>
+      </div>
+    </div>
+    <div id="accts" style="margin-top:10px"></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab on" data-tab="chat" onclick="switchTab('chat')">💬 对话</div>
+    <div class="tab" data-tab="image" onclick="switchTab('image')">🖼️ 图像生成</div>
+    <div class="tab" data-tab="lesson" onclick="switchTab('lesson')">🎬 科普动画</div>
+  </div>
+
+  <!-- 对话 -->
+  <section id="tab-chat">
+    <div class="card">
+      <div id="chat"></div>
+      <div class="row" style="margin-bottom:10px">
+        <label class="fld">模型<select id="model"></select></label>
+        <label class="fld">账号<select id="account"></select></label>
+        <button class="ghost" onclick="clearChat()">清空</button>
+      </div>
+      <textarea id="prompt" placeholder="输入消息，Enter 发送，Shift+Enter 换行…"></textarea>
+      <div class="row" style="margin-top:10px;justify-content:flex-end">
+        <button class="go" id="send" onclick="sendChat()">发送</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 图像 -->
+  <section id="tab-image" style="display:none">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <label class="fld">账号<select id="imgAccount"></select></label>
+      </div>
+      <textarea id="imgPrompt" placeholder="描述要生成的图片，例如：一只戴宇航员头盔的橘猫，卡通插画风…"></textarea>
+      <div class="row" style="margin-top:10px;justify-content:flex-end">
+        <button class="go" id="imgGo" onclick="genImage()">生成图片</button>
+      </div>
+      <div class="hint" style="margin-top:8px">图像走各账号每日额度，用尽自动切下一个号。</div>
+      <div id="imgOut"></div>
+    </div>
+  </section>
+
+  <!-- 科普动画 -->
+  <section id="tab-lesson" style="display:none">
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <label class="fld">模型<select id="lsModel"></select></label>
+        <label class="fld">账号<select id="lsAccount"></select></label>
+      </div>
+      <input id="lsTopic" placeholder="科普主题，如：为什么天空是蓝色的？" style="width:100%">
+      <div class="row" style="margin-top:10px;justify-content:flex-end">
+        <button class="ghost" id="lsDownload" onclick="downloadLesson()" disabled>下载 HTML</button>
+        <button class="go" id="lsGo" onclick="genLesson()">生成动画</button>
+      </div>
+      <div class="hint" style="margin-top:8px">生成 9:16 竖屏 HTML+SVG 动画（含 __SVG_RENDER_AT 逐帧契约），约 60-140 秒。</div>
+      <div id="lsStatus" class="hint" style="margin-top:8px"></div>
+      <iframe id="lessonFrame" style="display:none"></iframe>
+    </div>
+  </section>
+</div>
+
+<!-- 登录浮层 -->
+<div id="login">
+  <div class="box">
+    <h2>🔒 请输入访问口令</h2>
+    <div class="hint">由 .env 里的 API_KEY 配置</div>
+    <input id="pw" type="password" placeholder="口令" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="go" style="width:100%" onclick="doLogin()">进入</button>
+    <div id="loginErr" class="hint" style="color:var(--bad);margin-top:10px"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let messages = [], lessonHtml = "", lessonTopic = "";
+const KEY = () => localStorage.getItem("gm_key") || "";
+
+function authHeaders(extra){
+  const h = Object.assign({}, extra||{});
+  if(KEY()) h["Authorization"] = "Bearer " + KEY();
+  return h;
+}
+async function api(path, opts){
+  opts = opts || {};
+  opts.headers = authHeaders(opts.headers);
+  const r = await fetch(path, opts);
+  if(r.status === 401){ showLogin(); throw new Error("需要口令"); }
+  return r;
+}
+function showLogin(){ $("login").style.display = "flex"; }
+function logout(){ localStorage.removeItem("gm_key"); showLogin(); }
+async function doLogin(){
+  localStorage.setItem("gm_key", $("pw").value);
+  $("loginErr").textContent = "";
+  try{
+    const r = await fetch("/health", {headers: authHeaders()});
+    if(r.status === 401){ $("loginErr").textContent = "口令错误"; return; }
+    $("login").style.display = "none";
+    loadHealth();
+  }catch(e){ $("loginErr").textContent = String(e); }
+}
+
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function render(md){
+  let h = esc(md);
+  h = h.replace(/```(\w+)?\n([\s\S]*?)```/g,(m,l,c)=>"<pre>"+c+"</pre>");
+  h = h.replace(/!\[[^\]]*\]\(([^)]+)\)/g,(m,u)=>'<img src="'+u+'">');
+  h = h.replace(/`([^`]+)`/g,"<code>$1</code>");
+  h = h.replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>");
+  return h;
+}
+
+async function loadHealth(){
+  try{
+    const r = await api("/health");
+    const d = await r.json();
+    $("readyCnt").textContent = "(" + d.ready_count + "/" + d.accounts.length + " 在线)";
+    $("accts").innerHTML = d.accounts.map(a =>
+      '<span class="chip"><span class="dot '+(a.ready?'ok':'bad')+'"></span>'+a.label+'</span>').join("");
+    const opts = '<option value="">自动（轮询）</option>' +
+      d.accounts.filter(a=>a.ready).map(a=>'<option value="'+a.label+'">'+a.label+'</option>').join("");
+    $("account").innerHTML = opts; $("imgAccount").innerHTML = opts; $("lsAccount").innerHTML = opts;
+    const md = await (await api("/v1/models")).json();
+    const mopts = md.data.map(m=>{
+      const v = m.id==="unspecified" ? "" : m.id;
+      const t = m.id==="unspecified" ? "默认" : m.id;
+      return '<option value="'+v+'">'+t+'</option>';
+    }).join("");
+    $("model").innerHTML = mopts; $("lsModel").innerHTML = mopts;
+    if([...$("model").options].some(o=>o.value==="gemini-3-pro")){ $("model").value="gemini-3-pro"; $("lsModel").value="gemini-3-pro"; }
+  }catch(e){
+    if(String(e).indexOf("口令")<0) $("accts").innerHTML = '<span class="hint">无法连接：'+e+'</span>';
+  }
+}
+
+function switchTab(t){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x.dataset.tab===t));
+  ["chat","image","lesson"].forEach(x=>$("tab-"+x).style.display = x===t?"block":"none");
+}
+function clearChat(){ messages=[]; $("chat").innerHTML=""; }
+function addMsg(role, html, meta){
+  const div = document.createElement("div");
+  div.className = "msg " + (role==="user"?"user":"ai");
+  div.innerHTML = (meta?'<div class="meta">'+meta+'</div>':'') + html;
+  $("chat").appendChild(div);
+  div.scrollIntoView({behavior:"smooth",block:"end"});
+  return div;
+}
+async function sendChat(){
+  const text = $("prompt").value.trim(); if(!text) return;
+  $("prompt").value=""; addMsg("user", esc(text));
+  messages.push({role:"user", content:text});
+  $("send").disabled = true;
+  const ph = addMsg("ai", '<span class="spin"></span> 思考中…', "");
+  try{
+    const body = {model: $("model").value || undefined, messages};
+    const acc = $("account").value; if(acc) body.account = acc;
+    const r = await api("/v1/chat/completions",{method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    const msg = d.choices[0].message.content;
+    messages.push({role:"assistant", content:msg});
+    ph.innerHTML = '<div class="meta">账号：'+(d.account||"?")+' · '+(d.model||"")+'</div>' + render(msg);
+  }catch(e){ ph.innerHTML = '<div class="meta" style="color:var(--bad)">出错</div>'+esc(String(e)); }
+  finally{ $("send").disabled=false; }
+}
+async function genImage(){
+  const text = $("imgPrompt").value.trim(); if(!text) return;
+  $("imgGo").disabled = true;
+  $("imgOut").innerHTML = '<p class="hint"><span class="spin"></span> 生成中，20-60 秒…</p>';
+  try{
+    const body = {prompt:text};
+    const acc = $("imgAccount").value; if(acc) body.account = acc;
+    const r = await api("/v1/images/generations",{method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    $("imgOut").innerHTML = '<p class="hint">账号：'+(d.account||"?")+'</p>' +
+      d.data.map(x=>'<img src="'+x.url+'">').join("");
+  }catch(e){ $("imgOut").innerHTML = '<p class="hint" style="color:var(--bad)">'+esc(String(e))+'</p>'; }
+  finally{ $("imgGo").disabled=false; }
+}
+async function genLesson(){
+  const topic = $("lsTopic").value.trim(); if(!topic) return;
+  $("lsGo").disabled = true; $("lsDownload").disabled = true;
+  $("lsStatus").innerHTML = '<span class="spin"></span> 生成中，约 60-140 秒，请耐心等待…';
+  $("lessonFrame").style.display = "none";
+  try{
+    const body = {topic, model: $("lsModel").value || undefined};
+    const acc = $("lsAccount").value; if(acc) body.account = acc;
+    const r = await api("/v1/lesson",{method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    lessonHtml = d.html; lessonTopic = topic;
+    $("lessonFrame").srcdoc = lessonHtml;
+    $("lessonFrame").style.display = "block";
+    $("lsStatus").innerHTML = '✅ 完成（账号：'+(d.account||"?")+'，'+lessonHtml.length+' 字节）';
+    $("lsDownload").disabled = false;
+  }catch(e){ $("lsStatus").innerHTML = '<span style="color:var(--bad)">出错：'+esc(String(e))+'</span>'; }
+  finally{ $("lsGo").disabled=false; }
+}
+function downloadLesson(){
+  if(!lessonHtml) return;
+  const blob = new Blob([lessonHtml], {type:"text/html"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "lesson-" + lessonTopic.replace(/[\\/:*?"<>|\s]+/g,"-").slice(0,30) + ".html";
+  a.click();
+}
+$("prompt").addEventListener("keydown",e=>{
+  if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendChat(); }
+});
+
+// 启动：先探测是否需要口令
+(async function(){
+  try{
+    const r = await fetch("/health", {headers: authHeaders()});
+    if(r.status === 401){ showLogin(); return; }
+    loadHealth();
+  }catch(e){ loadHealth(); }
+})();
+</script>
+</body>
+</html>
